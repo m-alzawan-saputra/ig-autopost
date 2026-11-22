@@ -1,0 +1,32 @@
+name: Perpanjang token Instagram
+
+# Token Instagram berlaku 60 hari. Workflow ini memperpanjangnya tiap tanggal 1.
+# Agar token baru tersimpan otomatis, tambahkan secret GH_PAT
+# (fine-grained token dengan izin "Secrets: Read and write" untuk repo ini).
+
+on:
+  schedule:
+    - cron: "0 2 1 * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Perpanjang token
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          RESP=$(curl -s "https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${IG_ACCESS_TOKEN}")
+          NEW=$(echo "$RESP" | jq -r '.access_token // empty')
+          if [ -z "$NEW" ]; then
+            echo "Gagal memperpanjang token:"; echo "$RESP" | jq 'del(.access_token)'; exit 1
+          fi
+          echo "::add-mask::$NEW"
+          if [ -n "$GH_TOKEN" ]; then
+            gh secret set IG_ACCESS_TOKEN --body "$NEW" --repo "$GITHUB_REPOSITORY"
+            echo "Token diperpanjang dan disimpan."
+          else
+            echo "Token diperpanjang, tapi GH_PAT belum ada sehingga secret tidak diperbarui."
+          fi
