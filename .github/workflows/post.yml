@@ -1,0 +1,40 @@
+name: Posting Instagram
+
+on:
+  schedule:
+    - cron: "0 11 * * *"   # setiap hari 18.00 WIB
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Uji coba saja (tidak memposting)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency: posting-instagram
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Posting
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: python scripts/post.py
+
+      - name: Pindahkan ke posted/
+        run: |
+          git config user.name "ig-autopost"
+          git config user.email "ig-autopost@users.noreply.github.com"
+          git add -A queue posted
+          git diff --cached --quiet || (git commit -m "Terposting: $(date -u +%F)" && git push)
